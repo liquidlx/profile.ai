@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { OPENAI_URL, OPENAI_MODEL } from './consts';
 import { ConfigService } from '@nestjs/config';
-import { RedisCacheService } from '../redis/redis-cache.service';
+import { RedisCacheService } from '../redis/redis.service';
 import * as crypto from 'crypto';
 
 @Injectable()

@@ -3,8 +3,8 @@ import * as pdfParse from 'pdf-parse';
 import { PrismaClient } from 'generated/prisma';
 import { ChunkerService } from '../../ai/chunker.service';
 import { EmbeddingService } from '../../ai/embedding.service';
-import { RedisCacheService } from '../../redis/redis-cache.service';
-import { PdfCleanerService } from './pdf-cleaner.service';
+import { RedisCacheService } from '../../redis/redis.service';
+import { PdfCleanerService } from './pdfCleaner.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()

@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { DevelopersService } from './developers.service';
 import { DevelopersController } from './developers.controller';
 import { ResumeUploaderService } from './uploader/resumeUploader.service';
-import { PdfCleanerService } from './uploader/pdf-cleaner.service';
+import { PdfCleanerService } from './uploader/pdfCleaner.service';
 import { AiModule } from '../ai';
 import { RedisModule } from '../redis';
 import { PrismaClient } from 'generated/prisma';

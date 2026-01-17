@@ -1,2 +1,2 @@
-export * from './create-developer.dto';
-export * from './update-developer.dto';
+export * from './createDeveloper.dto';
+export * from './updateDeveloper.dto';

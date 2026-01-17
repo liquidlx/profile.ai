@@ -1,10 +1,6 @@
 import { Controller, Post, Body, Param } from '@nestjs/common';
 import { RecruiterChatService } from './recruiterChat.service';
-
-export class AskQuestionDto {
-  question: string;
-  recruiterId: string;
-}
+import { AskQuestionDto } from './dto';
 
 @Controller('recruiter-chat')
 export class RecruiterChatController {

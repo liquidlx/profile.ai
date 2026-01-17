@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import assert from 'assert';
-import axios from 'axios';
-import { PrismaClient, ResumeChunk } from 'generated/prisma';
-import { EmbeddingService } from 'src/ai/embedding.service';
+import { PrismaClient, ResumeChunk } from '../../generated/prisma';
+import { EmbeddingService } from '../ai/embedding.service';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 
 @Injectable()
 export class RecruiterChatService {
@@ -28,9 +27,9 @@ export class RecruiterChatService {
 
     // Step 2: Retrieve top relevant chunks
     const topChunks: ResumeChunk[] = await this.prisma.$queryRaw`
-      SELECT * FROM "ResumeChunk"
+      SELECT "chunkText" FROM "ResumeChunk"
       WHERE "developerId" = ${developerId}
-      ORDER BY embedding <-> ${questionEmbedding}
+      ORDER BY embedding <-> ${questionEmbedding}::vector
       LIMIT 3
     `;
 
@@ -38,7 +37,9 @@ export class RecruiterChatService {
       where: { id: developerId },
     });
 
-    assert(developer, 'Developer not found');
+    if (!developer) {
+      throw new Error('Developer not found');
+    }
 
     const contextChunks = topChunks
       .map((chunk) => chunk.chunkText)
@@ -82,15 +83,14 @@ ${question}
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const answer = response.data.choices[0].message.content as string;
 
-    // Save recruiter question to DB for analytics
-    await this.prisma.recruiterQuestion.create({
-      data: {
-        recruiterId,
-        developerId,
-        question,
-        answer,
-      },
-    });
+    // // Save recruiter question to DB for analytics
+    // await this.prisma.`
+    //     recruiterId,
+    //     developerId,
+    //     question,
+    //     answer,
+    //   },
+    // });
 
     return answer;
   }
