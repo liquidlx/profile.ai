@@ -137,11 +137,10 @@ Be specific and actionable. Return empty arrays if a category has no items.`;
       const title = response.data.choices?.[0]?.message?.content?.trim();
       return title && title !== 'null' ? title : null;
     } catch (error) {
-      this.logger.warn(
+      this.logger.error(
         'Failed to extract job title with AI, returning null',
         error,
       );
-      this.logger.warn('Failed to extract job title with AI, returning null');
       return null;
     }
   }
