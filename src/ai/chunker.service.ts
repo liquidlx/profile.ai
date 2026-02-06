@@ -5,7 +5,7 @@ import { encoding_for_model, Tiktoken } from '@dqbd/tiktoken';
 export class ChunkerService {
   private readonly tokenizer: Tiktoken;
 
-  private readonly targetTokensPerChunk = 400;
+  private readonly targetTokensPerChunk = 200;
   private readonly overlapTokens = 100;
 
   constructor() {

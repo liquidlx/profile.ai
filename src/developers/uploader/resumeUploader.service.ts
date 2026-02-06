@@ -75,10 +75,15 @@ export class ResumeUploaderService {
       where: { developerId },
     });
 
+    // Store original cleaned text for resume reconstruction
+    await this.prisma.developerProfile.update({
+      where: { id: developerId },
+      data: { originalResumeText: cleanedText },
+    });
+
     let chunksCreated = 0;
     for (const chunkText of validChunks) {
       try {
-        // Use the embedding service which now has built-in Redis caching
         const embedding = await this.embeddingService.getEmbedding(chunkText);
 
         const id = randomUUID();

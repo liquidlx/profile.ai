@@ -6,6 +6,7 @@ import { RecruitersModule } from './recruiters';
 import { AiModule } from './ai';
 import { AuthModule } from './auth';
 import { RedisModule } from './redis';
+import { ResumeModule } from './resume';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RedisModule } from './redis';
     AiModule,
     AuthModule,
     RedisModule,
+    ResumeModule,
     ConfigModule.forRoot({ envFilePath: '.env', isGlobal: true }),
   ],
   controllers: [HealthController],
