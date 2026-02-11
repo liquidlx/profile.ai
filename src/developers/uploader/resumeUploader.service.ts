@@ -45,10 +45,6 @@ export class ResumeUploaderService {
     const parsedPdf = await pdfParse(file.buffer);
     const rawText = parsedPdf.text;
 
-    if (!rawText || rawText.trim().length === 0) {
-      throw new Error('No text content found in the PDF');
-    }
-
     // Clean the text to remove sensitive information
     const cleanedText = this.pdfCleaner.cleanTextContent(rawText);
 
