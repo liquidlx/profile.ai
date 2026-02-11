@@ -9,7 +9,7 @@ export class PdfCleanerService {
    */
   cleanTextContent(text: string): string {
     // Remove phone numbers (various formats)
-    text = text.replace(
+    text = text?.replace(
       /(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
       '[PHONE]',
     );
