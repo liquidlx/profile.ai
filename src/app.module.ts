@@ -7,6 +7,8 @@ import { AiModule } from './ai';
 import { AuthModule } from './auth';
 import { RedisModule } from './redis';
 import { ResumeModule } from './resume';
+import { PrismaModule } from './prisma';
+import { aiConfig } from './ai/ai.config';
 
 @Module({
   imports: [
@@ -16,7 +18,8 @@ import { ResumeModule } from './resume';
     AuthModule,
     RedisModule,
     ResumeModule,
-    ConfigModule.forRoot({ envFilePath: '.env', isGlobal: true }),
+    PrismaModule,
+    ConfigModule.forRoot({ envFilePath: '.env', isGlobal: true, load: [aiConfig] }),
   ],
   controllers: [HealthController],
   providers: [],

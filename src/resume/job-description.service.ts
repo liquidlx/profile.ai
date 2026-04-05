@@ -1,15 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { LlmService } from '../ai/llm.service';
 import { JobRequirements } from './types';
 
 @Injectable()
 export class JobDescriptionService {
   private readonly logger = new Logger(JobDescriptionService.name);
-  private readonly openAiChatUrl = 'https://api.openai.com/v1/chat/completions';
-  private readonly model = 'gpt-3.5-turbo';
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly llmService: LlmService,
+  ) {}
 
   async analyzeJobDescription(
     jobDescription: string,
@@ -39,27 +40,21 @@ Be specific and actionable. Return empty arrays if a category has no items.`;
     const userPrompt = `Analyze this job description:\n\n${jobDescription}`;
 
     try {
-      const response = await axios.post(
-        this.openAiChatUrl,
+      const { content } = await this.llmService.chat(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
         {
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0,
-          response_format: { type: 'json_object' },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.configService.get<string>('OPENAI_API_KEY')}`,
-          },
+          model: this.configService.get<string>('ai.models.jobDescription')!,
+          temperature: this.configService.get<number>(
+            'ai.params.jobDescription.temperature',
+          ),
+          responseFormat: 'json_object',
         },
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      const content = response.data.choices[0].message.content as string;
-      const parsed = JSON.parse(content) as JobRequirements;
+      const parsed = JSON.parse(content!) as JobRequirements;
 
       // Validate structure
       if (
@@ -111,30 +106,22 @@ Be specific and actionable. Return empty arrays if a category has no items.`;
     try {
       const systemPrompt = `Extract the job title from a job description. Return ONLY the job title, nothing else. Examples: "Senior Backend Engineer", "Full Stack Developer", "Product Manager". If no clear title, return null.`;
 
-      const response = await axios.post<{
-        choices: { message: { content: string } }[];
-      }>(
-        this.openAiChatUrl,
-        {
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: `Extract job title from:\n\n${jobDescription.substring(0, 500)}`,
-            },
-          ],
-          temperature: 0,
-          max_tokens: 50,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.configService.get<string>('OPENAI_API_KEY')}`,
+      const { content } = await this.llmService.chat(
+        [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: `Extract job title from:\n\n${jobDescription.substring(0, 500)}`,
           },
+        ],
+        {
+          model: this.configService.get<string>('ai.models.jobDescription')!,
+          temperature: 0,
+          maxTokens: 50,
         },
       );
 
-      const title = response.data.choices?.[0]?.message?.content?.trim();
+      const title = content?.trim();
       return title && title !== 'null' ? title : null;
     } catch (error) {
       this.logger.error(

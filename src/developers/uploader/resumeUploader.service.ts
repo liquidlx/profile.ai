@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as pdfParse from 'pdf-parse';
-import { PrismaClient } from 'generated/prisma';
+import { PrismaService } from '../../prisma';
 import { ChunkerService } from '../../ai/chunker.service';
 import { EmbeddingService } from '../../ai/embedding.service';
 import { RedisCacheService } from '../../redis/redis.service';
@@ -12,7 +12,7 @@ export class ResumeUploaderService {
   private readonly logger = new Logger(ResumeUploaderService.name);
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly chunker: ChunkerService,
     private readonly embeddingService: EmbeddingService,
     private readonly redisCache: RedisCacheService,

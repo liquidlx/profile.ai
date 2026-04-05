@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient } from '../../generated/prisma';
+import { PrismaService } from '../prisma';
 import { JobDescriptionService } from './job-description.service';
 import { ResumeSynthesisService } from './resume-synthesis.service';
 import { PdfGeneratorService } from './pdf-generator.service';
@@ -9,7 +9,7 @@ export class ResumeService {
   private readonly logger = new Logger(ResumeService.name);
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly jobDescriptionService: JobDescriptionService,
     private readonly resumeSynthesisService: ResumeSynthesisService,
     private readonly pdfGeneratorService: PdfGeneratorService,

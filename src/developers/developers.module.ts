@@ -5,7 +5,6 @@ import { ResumeUploaderService } from './uploader/resumeUploader.service';
 import { PdfCleanerService } from './uploader/pdfCleaner.service';
 import { AiModule } from '../ai';
 import { RedisModule } from '../redis';
-import { PrismaClient } from 'generated/prisma';
 
 @Module({
   imports: [AiModule, RedisModule],
@@ -14,7 +13,6 @@ import { PrismaClient } from 'generated/prisma';
     DevelopersService,
     ResumeUploaderService,
     PdfCleanerService,
-    PrismaClient,
   ],
   exports: [DevelopersService, ResumeUploaderService],
 })

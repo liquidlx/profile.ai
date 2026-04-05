@@ -1,16 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import axios from 'axios';
-import { OPENAI_URL, OPENAI_MODEL } from './consts';
 import { ConfigService } from '@nestjs/config';
+import OpenAI from 'openai';
 import { RedisCacheService } from '../redis/redis.service';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class EmbeddingService {
+  private readonly openai: OpenAI;
+
   constructor(
     private readonly configService: ConfigService,
     private readonly redisCache: RedisCacheService,
-  ) {}
+  ) {
+    this.openai = new OpenAI({
+      apiKey: this.configService.get<string>('ai.openaiApiKey'),
+      maxRetries: this.configService.get<number>('ai.retry.maxRetries') ?? 3,
+    });
+  }
 
   async getEmbedding(text: string): Promise<number[]> {
     // Create a hash of the text for caching
@@ -33,25 +39,12 @@ export class EmbeddingService {
       }
     }
 
-    // If not in cache, generate embedding
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    const model =
+      this.configService.get<string>('ai.models.embedding') ??
+      'text-embedding-3-small';
 
-    const response = await axios.post(
-      OPENAI_URL,
-      {
-        input: text,
-        model: OPENAI_MODEL,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-      },
-    );
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const embedding = response.data?.data?.[0]?.embedding as number[];
+    const response = await this.openai.embeddings.create({ input: text, model });
+    const embedding = response.data[0].embedding;
 
     // Cache the embedding for 24 hours (86400 seconds)
     await this.redisCache.set(cacheKey, JSON.stringify(embedding), 86400);

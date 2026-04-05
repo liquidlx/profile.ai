@@ -4,14 +4,15 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaClient, User } from 'generated/prisma';
+import { User } from 'generated/prisma';
+import { PrismaService } from '../prisma';
 import * as bcrypt from 'bcryptjs';
 import { LoginDto, RegisterDto } from './dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
 

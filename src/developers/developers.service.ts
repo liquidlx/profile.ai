@@ -6,13 +6,14 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { CreateDeveloperDto, UpdateDeveloperDto } from './dto';
-import { DeveloperProfile, PrismaClient } from 'generated/prisma';
+import { DeveloperProfile } from 'generated/prisma';
+import { PrismaService } from '../prisma';
 
 @Injectable()
 export class DevelopersService {
   private readonly logger = new Logger(DevelopersService.name);
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(
     createDeveloperDto: CreateDeveloperDto,

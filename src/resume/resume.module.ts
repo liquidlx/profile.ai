@@ -6,7 +6,6 @@ import { ResumeSynthesisService } from './resume-synthesis.service';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { AiModule } from '../ai';
 import { RedisModule } from '../redis';
-import { PrismaClient } from '../../generated/prisma';
 
 @Module({
   imports: [AiModule, RedisModule],
@@ -16,7 +15,6 @@ import { PrismaClient } from '../../generated/prisma';
     JobDescriptionService,
     ResumeSynthesisService,
     PdfGeneratorService,
-    PrismaClient,
   ],
   exports: [ResumeService],
 })

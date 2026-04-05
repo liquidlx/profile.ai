@@ -1,19 +1,19 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaClient, ResumeChunk } from '../../generated/prisma';
+import { ResumeChunk } from '../../generated/prisma';
+import { PrismaService } from '../prisma';
 import { EmbeddingService } from '../ai/embedding.service';
+import { LlmService } from '../ai/llm.service';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { JobRequirements, TailoredResume } from './types';
 
 @Injectable()
 export class ResumeSynthesisService {
   private readonly logger = new Logger(ResumeSynthesisService.name);
-  private readonly openAiChatUrl = 'https://api.openai.com/v1/chat/completions';
-  private readonly model = 'gpt-4o-mini'; // Using more capable model for structured output
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
+    private readonly llmService: LlmService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -150,27 +150,21 @@ ${resumeContext}
 Generate a tailored resume that matches these job requirements. Remember: ONLY use content from the original resume.`;
 
     try {
-      const response = await axios.post(
-        this.openAiChatUrl,
+      const { content } = await this.llmService.chat(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
         {
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.2,
-          response_format: { type: 'json_object' },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.configService.get<string>('OPENAI_API_KEY')}`,
-          },
+          model: this.configService.get<string>('ai.models.resumeSynthesis')!,
+          temperature: this.configService.get<number>(
+            'ai.params.resumeSynthesis.temperature',
+          ),
+          responseFormat: 'json_object',
         },
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      const content = response.data.choices[0].message.content as string;
-      const parsed = JSON.parse(content) as TailoredResume;
+      const parsed = JSON.parse(content!) as TailoredResume;
 
       // Validate structure
       if (

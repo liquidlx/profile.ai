@@ -1,18 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient, ResumeChunk } from '../../generated/prisma';
+import { ResumeChunk } from '../../generated/prisma';
+import { PrismaService } from '../prisma';
 import { EmbeddingService } from '../ai/embedding.service';
+import { LlmService } from '../ai/llm.service';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 
 @Injectable()
 export class RecruiterChatService {
   private readonly logger = new Logger(RecruiterChatService.name);
-  private readonly openAiChatUrl = 'https://api.openai.com/v1/chat/completions';
-  private readonly model = 'gpt-3.5-turbo';
 
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
+    private readonly llmService: LlmService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -50,6 +50,7 @@ export class RecruiterChatService {
 You are an assistant helping recruiters evaluate the developer ${developer.name}.
 You can only answer based on the information provided.
 If the question is out of scope or missing information, say "I don't have information about that."
+Never make up information.
 
 Summary:
 ${developer.summary}
@@ -64,24 +65,19 @@ Recruiter Question:
 ${question}
 `;
 
-    // Step 4: Call OpenAI chat completion
-    const response = await axios.post(
-      this.openAiChatUrl,
+    // Step 4: Call LLM
+    const { content } = await this.llmService.chat(
+      [{ role: 'system', content: systemPrompt }],
       {
-        model: this.model,
-        messages: [{ role: 'system', content: systemPrompt }],
-        temperature: 0,
-        max_tokens: 300,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${this.configService.get<string>('OPENAI_API_KEY')}`,
-        },
+        model: this.configService.get<string>('ai.models.recruiterChat')!,
+        temperature: this.configService.get<number>(
+          'ai.params.recruiterChat.temperature',
+        ),
+        maxTokens: this.configService.get<number>(
+          'ai.params.recruiterChat.maxTokens',
+        ),
       },
     );
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const answer = response.data.choices[0].message.content as string;
 
     // // Save recruiter question to DB for analytics
     // await this.prisma.`
@@ -92,6 +88,6 @@ ${question}
     //   },
     // });
 
-    return answer;
+    return content ?? '';
   }
 }

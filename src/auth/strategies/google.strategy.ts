@@ -5,7 +5,8 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
-import { PrismaClient, UserRole } from 'generated/prisma';
+import { UserRole } from 'generated/prisma';
+import { PrismaService } from '../../prisma';
 import { ConfigService } from '@nestjs/config';
 
 interface GoogleProfile {
@@ -22,7 +23,7 @@ interface GoogleProfile {
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
     const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
