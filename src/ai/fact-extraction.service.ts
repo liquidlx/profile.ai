@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { z } from 'zod';
 import { LlmService } from './llm.service';
 
 export interface ExtractedFact {
@@ -19,88 +17,63 @@ export interface ExtractedFact {
   endDate?: string;
 }
 
-const FactSchema = z.object({
-  factType: z.enum([
-    'SKILL',
-    'EXPERIENCE',
-    'ACHIEVEMENT',
-    'EDUCATION',
-    'CERTIFICATION',
-    'OTHER',
-  ]),
-  claim: z
-    .string()
-    .describe(
-      'One atomic statement. Do not combine multiple ideas. Do not infer.',
-    ),
-  sourceText: z
-    .string()
-    .describe(
-      'Exact verbatim quote from the resume text that supports this claim.',
-    ),
-  company: z.string().optional(),
-  title: z.string().optional(),
-  startDate: z
-    .string()
-    .optional()
-    .describe('ISO 8601 date string, e.g. "2021-03-01", or omit if unknown.'),
-  endDate: z.string().optional(),
-});
+const SYSTEM_PROMPT = `You are an expert resume parser. Extract atomic developer facts from the provided resume text.
 
-const ExtractionResponseSchema = z.object({
-  facts: z.array(FactSchema),
-});
+Return a JSON array of fact objects. Each object must have:
+- factType: one of SKILL, EXPERIENCE, ACHIEVEMENT, EDUCATION, CERTIFICATION, OTHER
+- claim: a concise, standalone factual statement (e.g. "Proficient in TypeScript", "Led a team of 5 engineers at Acme Corp")
+- sourceText: the verbatim excerpt from the resume that supports this claim
+- company: (optional) the company name if relevant
+- title: (optional) the job title if relevant
+- startDate: (optional) ISO date string (YYYY-MM-DD) if a start date is mentioned
+- endDate: (optional) ISO date string (YYYY-MM-DD) if an end date is mentioned
 
-const SYSTEM_PROMPT = `You are a precise resume parser. Extract every verifiable fact from the resume text below.
-
-Rules (MUST follow):
-- Only extract what is literally written in the text.
-- Each fact must be a single atomic claim (one idea). If a sentence contains two claims, create two separate facts.
-- sourceText must be an exact verbatim quote from the resume — never paraphrase.
-- Do NOT infer, assume, or combine information. If the resume says "led a team", the claim is "led a team" — do not add size, context, or outcomes unless they appear in the text.
-- Do NOT generate facts about skills that are only implied (e.g., if someone worked at a company using React, do not generate a React skill fact unless the resume explicitly states React proficiency).`;
+Extract as many distinct facts as possible. Do not merge multiple facts into one. Return only the JSON array with no additional text.`;
 
 @Injectable()
 export class FactExtractionService {
   private readonly logger = new Logger(FactExtractionService.name);
-  private readonly model: string;
-  private readonly maxTokens: number;
 
-  constructor(
-    private readonly llmService: LlmService,
-    configService: ConfigService,
-  ) {
-    this.model =
-      configService.get<string>('ai.models.factExtraction') ?? 'gpt-4o-mini';
-    this.maxTokens =
-      configService.get<number>('ai.params.factExtraction.maxTokens') ?? 4096;
-  }
+  constructor(private readonly llmService: LlmService) {}
 
   async extractFacts(resumeText: string): Promise<ExtractedFact[]> {
-    try {
-      const response = await this.llmService.chat(
-        [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: resumeText },
-        ],
-        {
-          model: this.model,
-          temperature: 0,
-          maxTokens: this.maxTokens,
-          zodSchema: ExtractionResponseSchema,
-        },
-      );
+    const response = await this.llmService.chat(
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: resumeText },
+      ],
+      {
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        responseFormat: 'json_object',
+        maxTokens: 4096,
+      },
+    );
 
-      const { content } = response;
-      if (!content) {
-        this.logger.warn('LLM returned no content');
+    if (!response.content) {
+      this.logger.warn('LLM returned empty content during fact extraction');
+      return [];
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(response.content);
+      const arr = Array.isArray(parsed)
+        ? parsed
+        : ((parsed as Record<string, unknown>).facts ??
+          (parsed as Record<string, unknown>).data ??
+          []);
+
+      if (!Array.isArray(arr)) {
+        this.logger.warn('Fact extraction: unexpected LLM response shape');
         return [];
       }
 
-      const parsed = ExtractionResponseSchema.parse(JSON.parse(content));
-      return parsed.facts;
-    } catch (error) {
-      this.logger.error('Extraction failed', error);
+      return (arr as ExtractedFact[]).filter(
+        (f) =>
+          f && typeof f.claim === 'string' && typeof f.sourceText === 'string',
+      );
+    } catch (err) {
+      this.logger.warn('Failed to parse fact extraction response', err);
       return [];
     }
   }
