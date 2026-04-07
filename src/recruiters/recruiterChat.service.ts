@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ResumeChunk } from '../../generated/prisma';
+import { DeveloperProfile, ResumeChunk } from '../../generated/prisma';
 import { PrismaService } from '../prisma';
 import { EmbeddingService } from '../ai/embedding.service';
 import { LlmService } from '../ai/llm.service';
@@ -16,16 +16,12 @@ export class RecruiterChatService {
     private readonly configService: ConfigService,
   ) {}
 
-  async answerRecruiterQuestion(
+  async buildContext(
     developerId: string,
-    recruiterId: string,
     question: string,
-  ): Promise<string> {
-    // Step 1: Embed recruiter question
-    const questionEmbedding =
-      await this.embeddingService.getEmbedding(question);
+  ): Promise<{ systemPrompt: string; developer: DeveloperProfile }> {
+    const questionEmbedding = await this.embeddingService.getEmbedding(question);
 
-    // Step 2: Retrieve top relevant chunks
     const topChunks: ResumeChunk[] = await this.prisma.$queryRaw`
       SELECT "chunkText" FROM "ResumeChunk"
       WHERE "developerId" = ${developerId}
@@ -41,16 +37,14 @@ export class RecruiterChatService {
       throw new Error('Developer not found');
     }
 
-    const contextChunks = topChunks
-      .map((chunk) => chunk.chunkText)
-      .join('\n\n');
+    const contextChunks = topChunks.map((chunk) => chunk.chunkText).join('\n\n');
 
-    // Step 3: Compose system prompt
     const systemPrompt = `
 You are an assistant helping recruiters evaluate the developer ${developer.name}.
 You can only answer based on the information provided.
 If the question is out of scope or missing information, say "I don't have information about that."
 Never make up information.
+If you need clarification from the recruiter to give a better answer, use the ask_recruiter_confirmation tool.
 
 Summary:
 ${developer.summary}
@@ -65,7 +59,16 @@ Recruiter Question:
 ${question}
 `;
 
-    // Step 4: Call LLM
+    return { systemPrompt, developer };
+  }
+
+  async answerRecruiterQuestion(
+    developerId: string,
+    recruiterId: string,
+    question: string,
+  ): Promise<string> {
+    const { systemPrompt } = await this.buildContext(developerId, question);
+
     const { content } = await this.llmService.chat(
       [{ role: 'system', content: systemPrompt }],
       {
@@ -78,15 +81,6 @@ ${question}
         ),
       },
     );
-
-    // // Save recruiter question to DB for analytics
-    // await this.prisma.`
-    //     recruiterId,
-    //     developerId,
-    //     question,
-    //     answer,
-    //   },
-    // });
 
     return content ?? '';
   }
