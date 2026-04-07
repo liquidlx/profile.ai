@@ -21,7 +21,10 @@ export interface ChatOptions {
   responseFormat?: 'text' | 'json_object';
   // Tool/function calling — typed for future use
   tools?: ToolDefinition[];
-  toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
+  toolChoice?:
+    | 'none'
+    | 'auto'
+    | { type: 'function'; function: { name: string } };
   zodSchema?: ZodType;
 }
 

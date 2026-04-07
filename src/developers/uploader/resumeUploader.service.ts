@@ -3,6 +3,7 @@ import * as pdfParse from 'pdf-parse';
 import { PrismaService } from '../../prisma';
 import { ChunkerService } from '../../ai/chunker.service';
 import { EmbeddingService } from '../../ai/embedding.service';
+import { FactExtractionService } from '../../ai/fact-extraction.service';
 import { RedisCacheService } from '../../redis/redis.service';
 import { PdfCleanerService } from './pdfCleaner.service';
 import { randomUUID } from 'crypto';
@@ -15,6 +16,7 @@ export class ResumeUploaderService {
     private readonly prisma: PrismaService,
     private readonly chunker: ChunkerService,
     private readonly embeddingService: EmbeddingService,
+    private readonly factExtractionService: FactExtractionService,
     private readonly redisCache: RedisCacheService,
     private readonly pdfCleaner: PdfCleanerService,
   ) {}
@@ -110,9 +112,49 @@ export class ResumeUploaderService {
     //   },
     // });
 
+    let factsCreated = 0;
+    try {
+      const extractedFacts = await this.factExtractionService.extractFacts(cleanedText);
+
+      if (extractedFacts.length > 0) {
+        await this.prisma.developerFact.deleteMany({
+          where: { developerId, sourceType: 'RESUME' },
+        });
+      }
+
+      for (const fact of extractedFacts) {
+        const embedding = await this.embeddingService.getEmbedding(fact.claim);
+        const id = randomUUID();
+        const embeddingStr = `[${embedding.join(',')}]`;
+        await this.prisma.$executeRaw`
+          INSERT INTO "DeveloperFact"
+            ("id","developerId","factType","claim","sourceText","sourceType",
+             "company","title","startDate","endDate","embedding","createdAt","updatedAt")
+          VALUES (
+            ${id}, ${developerId}, ${fact.factType}::"FactType", ${fact.claim},
+            ${fact.sourceText}, 'RESUME'::"FactSourceType",
+            ${fact.company ?? null}, ${fact.title ?? null},
+            ${fact.startDate ? new Date(fact.startDate) : null},
+            ${fact.endDate ? new Date(fact.endDate) : null},
+            ${embeddingStr}::vector, NOW(), NOW()
+          )
+        `;
+        factsCreated++;
+      }
+
+      this.logger.log(
+        `Fact extraction complete for developer ${developerId}. Created ${factsCreated} facts.`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Fact extraction failed for developer ${developerId} — skipping facts`,
+        err,
+      );
+    }
+
     this.logger.log(
       `Resume processing complete for developer ${developerId}. Created ${chunksCreated} chunks.`,
     );
-    return { chunksCreated, cleaningStats };
+    return { chunksCreated, factsCreated, cleaningStats };
   }
 }
