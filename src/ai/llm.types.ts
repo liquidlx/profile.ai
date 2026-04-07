@@ -17,6 +17,7 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'text' | 'json_object';
+  zodSchema?: import('zod').ZodType;
   // Tool/function calling — typed for future use
   tools?: ToolDefinition[];
   toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };

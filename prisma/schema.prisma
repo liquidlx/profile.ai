@@ -53,6 +53,7 @@ model DeveloperProfile {
 
   recruiterQuestions RecruiterQuestion[]
   resumeChunks       ResumeChunk[]
+  developerFacts     DeveloperFact[]
 }
 
 model RecruiterProfile {
@@ -90,4 +91,35 @@ model RecruiterQuestion {
   question        String
   answer          String
   createdAt       DateTime @default(now())
+}
+
+enum FactType {
+  SKILL
+  EXPERIENCE
+  ACHIEVEMENT
+  EDUCATION
+  CERTIFICATION
+  OTHER
+}
+
+enum FactSourceType {
+  RESUME
+  DEVELOPER_INPUT
+}
+
+model DeveloperFact {
+  id          String         @id @default(uuid())
+  developerId String
+  developer   DeveloperProfile @relation(fields: [developerId], references: [id])
+  factType    FactType
+  claim       String
+  sourceText  String
+  sourceType  FactSourceType
+  company     String?
+  title       String?
+  startDate   DateTime?
+  endDate     DateTime?
+  embedding   Unsupported("vector(1536)")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
