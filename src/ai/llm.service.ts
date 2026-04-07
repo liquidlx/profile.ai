@@ -7,6 +7,7 @@ import type {
   ChatCompletionTool,
   ChatCompletionToolChoiceOption,
 } from 'openai/resources';
+import { zodResponseFormat } from 'openai/helpers/zod';
 import { ChatMessage, ChatOptions, ChatResponse } from './llm.types';
 
 @Injectable()
@@ -27,9 +28,11 @@ export class LlmService {
       messages: messages as ChatCompletionMessageParam[],
       ...(options.temperature !== undefined && { temperature: options.temperature }),
       ...(options.maxTokens !== undefined && { max_tokens: options.maxTokens }),
-      ...(options.responseFormat && {
-        response_format: { type: options.responseFormat },
-      }),
+      ...(options.zodSchema
+        ? { response_format: zodResponseFormat(options.zodSchema, 'response') }
+        : options.responseFormat
+          ? { response_format: { type: options.responseFormat } }
+          : {}),
       ...(options.tools && {
         tools: options.tools as ChatCompletionTool[],
         tool_choice: options.toolChoice as ChatCompletionToolChoiceOption,

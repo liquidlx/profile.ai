@@ -20,6 +20,8 @@ export interface ChatOptions {
   // Tool/function calling — typed for future use
   tools?: ToolDefinition[];
   toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
+  /** Zod schema for structured output via zodResponseFormat. Mutually exclusive with responseFormat. */
+  zodSchema?: import('zod').ZodTypeAny;
 }
 
 export interface ToolCall {
