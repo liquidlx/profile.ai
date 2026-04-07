@@ -1,29 +1,9 @@
-import type { ZodTypeAny } from 'zod';
+import type { ZodType } from 'zod';
 
-// Regular text message (system, user, or assistant text reply)
-export interface TextChatMessage {
+export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
-
-// Assistant message that triggered a tool call (content is null per OpenAI spec)
-export interface AssistantToolCallMessage {
-  role: 'assistant';
-  content: null;
-  toolCalls: ToolCall[];
-}
-
-// Tool result fed back to the LLM after the tool executed
-export interface ToolResultMessage {
-  role: 'tool';
-  toolCallId: string;
-  content: string;
-}
-
-export type ChatMessage =
-  | TextChatMessage
-  | AssistantToolCallMessage
-  | ToolResultMessage;
 
 export interface ToolDefinition {
   type: 'function';
@@ -39,10 +19,13 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'text' | 'json_object';
-  /** Zod schema for structured output via zodResponseFormat. Mutually exclusive with responseFormat. */
-  zodSchema?: ZodTypeAny;
+  // Tool/function calling — typed for future use
   tools?: ToolDefinition[];
-  toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
+  toolChoice?:
+    | 'none'
+    | 'auto'
+    | { type: 'function'; function: { name: string } };
+  zodSchema?: ZodType;
 }
 
 export interface ToolCall {
