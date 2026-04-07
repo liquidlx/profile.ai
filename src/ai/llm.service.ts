@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { zodResponseFormat } from 'openai/helpers/zod';
 import type {
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
@@ -27,9 +28,9 @@ export class LlmService {
       messages: messages.map((m) => this.toSdkMessage(m)),
       ...(options.temperature !== undefined && { temperature: options.temperature }),
       ...(options.maxTokens !== undefined && { max_tokens: options.maxTokens }),
-      ...(options.responseFormat && {
-        response_format: { type: options.responseFormat },
-      }),
+      ...(options.zodSchema
+        ? { response_format: zodResponseFormat(options.zodSchema, 'response') }
+        : options.responseFormat && { response_format: { type: options.responseFormat } }),
       ...(options.tools && {
         tools: options.tools as ChatCompletionTool[],
         tool_choice: options.toolChoice as ChatCompletionToolChoiceOption,

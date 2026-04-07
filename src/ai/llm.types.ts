@@ -1,3 +1,5 @@
+import type { ZodTypeAny } from 'zod';
+
 // Regular text message (system, user, or assistant text reply)
 export interface TextChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -37,6 +39,8 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'text' | 'json_object';
+  /** Zod schema for structured output via zodResponseFormat. Mutually exclusive with responseFormat. */
+  zodSchema?: ZodTypeAny;
   tools?: ToolDefinition[];
   toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
 }
