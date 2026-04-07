@@ -24,7 +24,7 @@ export class LlmService {
   async chat(messages: ChatMessage[], options: ChatOptions): Promise<ChatResponse> {
     const params: ChatCompletionCreateParamsNonStreaming = {
       model: options.model,
-      messages: messages as ChatCompletionMessageParam[],
+      messages: messages.map((m) => this.toSdkMessage(m)),
       ...(options.temperature !== undefined && { temperature: options.temperature }),
       ...(options.maxTokens !== undefined && { max_tokens: options.maxTokens }),
       ...(options.responseFormat && {
@@ -64,5 +64,27 @@ export class LlmService {
           }
         : undefined,
     };
+  }
+
+  private toSdkMessage(msg: ChatMessage): ChatCompletionMessageParam {
+    if (msg.role === 'tool') {
+      return {
+        role: 'tool',
+        tool_call_id: msg.toolCallId,
+        content: msg.content,
+      };
+    }
+    if (msg.role === 'assistant' && msg.content === null) {
+      return {
+        role: 'assistant',
+        content: null,
+        tool_calls: msg.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        })),
+      };
+    }
+    return { role: msg.role, content: msg.content };
   }
 }
