@@ -8,6 +8,6 @@ import { RecruiterChatController } from './recruiterChat.controller';
   imports: [AiModule],
   controllers: [RecruiterChatController],
   providers: [RecruiterChatService, AgentLoopService],
-  exports: [RecruiterChatService],
+  exports: [RecruiterChatService, AgentLoopService],
 })
 export class RecruitersModule {}
