@@ -8,6 +8,8 @@ export class PdfCleanerService {
    * Clean text content to remove sensitive information
    */
   cleanTextContent(text: string): string {
+    if (!text) { return ''; }
+
     // Remove phone numbers (various formats)
     text = text.replace(
       /(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
