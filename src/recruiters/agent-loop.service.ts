@@ -1,15 +1,35 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { z } from 'zod';
 import { ConfigService } from '@nestjs/config';
 import { Observable, Subject } from 'rxjs';
 import { randomUUID } from 'crypto';
 import { LlmService } from '../ai/llm.service';
-import { ChatMessage, ToolCall, ToolDefinition } from '../ai/llm.types';
-import { RecruiterChatService } from './recruiterChat.service';
+import { ChatMessage, ToolDefinition } from '../ai/llm.types';
+import { RecruiterChatService, RetrievedFact } from './recruiterChat.service';
+
+const RecruiterAnswerSchema = z.object({
+  answer: z
+    .string()
+    .describe('Answer to the recruiter question based only on the cited facts.'),
+  citedFactIds: z
+    .array(z.string())
+    .describe(
+      'IDs of the DeveloperFacts used to form this answer (without the FACT- prefix).',
+    ),
+  hasInformation: z
+    .boolean()
+    .describe(
+      'True if the retrieved facts contain enough information to answer.',
+    ),
+});
+
+const NO_INFO_ANSWER =
+  "I don't have enough verified information to answer that question.";
 
 export type AgentEvent =
   | { type: 'session_start'; sessionId: string }
   | { type: 'tool_call'; toolName: string; args: Record<string, unknown> }
-  | { type: 'answer'; content: string }
+  | { type: 'answer'; content: string; citedFactIds: string[] }
   | { type: 'error'; message: string };
 
 const RECRUITER_TOOLS: ToolDefinition[] = [
@@ -57,8 +77,7 @@ export class AgentLoopService {
 
     subject.next({ type: 'session_start', sessionId });
 
-    // Run the loop async — do not await
-    void this.runLoop(sessionId, developerId, recruiterId, question);
+    void this.runLoop(sessionId, developerId, question);
 
     return [sessionId, subject.asObservable()];
   }
@@ -76,15 +95,20 @@ export class AgentLoopService {
   private async runLoop(
     sessionId: string,
     developerId: string,
-    recruiterId: string,
     question: string,
   ): Promise<void> {
     const subject = this.sessions.get(sessionId)!;
 
     try {
-      const { systemPrompt } = await this.recruiterChatService.buildContext(
-        developerId,
-        question,
+      const { systemPrompt, retrievedFacts } =
+        await this.recruiterChatService.buildContext(developerId, question);
+
+      const model = this.configService.get<string>('ai.models.recruiterChat')!;
+      const temperature = this.configService.get<number>(
+        'ai.params.recruiterChat.temperature',
+      );
+      const maxTokens = this.configService.get<number>(
+        'ai.params.recruiterChat.maxTokens',
       );
 
       const messages: ChatMessage[] = [
@@ -92,38 +116,30 @@ export class AgentLoopService {
         { role: 'user', content: question },
       ];
 
-      // Agent loop — continues until the LLM gives a final text answer
+      // Phase 1: Tool-calling loop (pause/resume for recruiter clarification)
       while (true) {
         const response = await this.llmService.chat(messages, {
-          model: this.configService.get<string>('ai.models.recruiterChat')!,
-          temperature: this.configService.get<number>(
-            'ai.params.recruiterChat.temperature',
-          ),
-          maxTokens: this.configService.get<number>(
-            'ai.params.recruiterChat.maxTokens',
-          ),
+          model,
+          temperature,
+          maxTokens,
           tools: RECRUITER_TOOLS,
           toolChoice: 'auto',
         });
 
         if (response.toolCalls?.length) {
-          const toolCall = response.toolCalls[0] as ToolCall;
+          const toolCall = response.toolCalls[0];
 
-          // Add the assistant's tool call to history
           messages.push({
             role: 'assistant',
             content: null,
             toolCalls: [toolCall],
           });
 
-          // Parse args and emit to frontend
           const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
           subject.next({ type: 'tool_call', toolName: toolCall.function.name, args });
 
-          // Pause until the frontend sends the tool result via /resume
           const toolResult = await this.waitForToolResult(sessionId);
 
-          // Add tool result to history and continue loop
           messages.push({
             role: 'tool',
             toolCallId: toolCall.id,
@@ -133,11 +149,52 @@ export class AgentLoopService {
           continue;
         }
 
-        // Final answer — emit and close the stream
-        subject.next({ type: 'answer', content: response.content ?? '' });
-        subject.complete();
+        if (response.content) {
+          messages.push({ role: 'assistant', content: response.content });
+        }
         break;
       }
+
+      // Phase 2: Structured final answer with citation enforcement
+      messages.push({
+        role: 'user',
+        content:
+          'Based on the facts provided, give your final structured answer. ' +
+          'Only cite fact IDs that were listed in the system prompt.',
+      });
+
+      const structuredResponse = await this.llmService.chat(messages, {
+        model,
+        temperature: 0,
+        zodSchema: RecruiterAnswerSchema,
+      });
+
+      let parsed: z.infer<typeof RecruiterAnswerSchema>;
+      try {
+        parsed = RecruiterAnswerSchema.parse(
+          JSON.parse(structuredResponse.content ?? '{}'),
+        );
+      } catch (err) {
+        this.logger.warn('Failed to parse structured LLM response', err);
+        subject.next({ type: 'answer', content: NO_INFO_ANSWER, citedFactIds: [] });
+        subject.complete();
+        return;
+      }
+
+      // Validate citations against retrieved facts
+      const validIds = new Set<string>(retrievedFacts.map((f: RetrievedFact) => f.id));
+      const validCitations = parsed.citedFactIds.filter((id) => validIds.has(id));
+
+      if (validCitations.length !== parsed.citedFactIds.length) {
+        this.logger.warn(
+          `Citation validation failed: some IDs not in retrieved facts. ` +
+            `Requested: ${parsed.citedFactIds.join(', ')}`,
+        );
+      }
+
+      const answer = parsed.hasInformation ? parsed.answer : NO_INFO_ANSWER;
+      subject.next({ type: 'answer', content: answer, citedFactIds: validCitations });
+      subject.complete();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Agent loop error for session=${sessionId}: ${message}`);
